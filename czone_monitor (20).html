@@ -1,0 +1,2183 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CZone Monitor — Configurazione &amp; Canali Live</title>
+<style>
+  :root{
+    --bg: #0b1216;
+    --bg-panel: #111b21;
+    --bg-panel-alt: #0e171c;
+    --line: #1f2e36;
+    --text: #d7e2e6;
+    --text-dim: #7d939c;
+    --accent: #ffb454;   /* amber strumentazione */
+    --accent2: #4fd1c5;  /* ciano CAN bus */
+    --ok: #3ecf6e;
+    --off: #4a5b63;
+    --err: #ff5d5d;
+    --warn: #ffb454;
+    --mono: "JetBrains Mono","SF Mono",Consolas,monospace;
+    --sans: "Inter","Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;}
+
+  header{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:14px 20px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0e1a20,#0b1216);
+    position:sticky;top:0;z-index:10;
+  }
+  .brand{display:flex;flex-direction:column;gap:2px;margin-right:auto;}
+  .brand .title{font-weight:700;letter-spacing:.02em;font-size:16px;}
+  .brand .sub{font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+  .brand .sub b{color:var(--accent2);}
+
+  .conn{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  select,button,input[type=text]{
+    background:var(--bg-panel-alt);border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:7px 10px;font-family:var(--sans);font-size:13px;
+  }
+  button{cursor:pointer;transition:border-color .15s, color .15s;}
+  button:hover{border-color:var(--accent2);}
+  button.primary{background:var(--accent2);color:#06181a;border-color:var(--accent2);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  button.danger{background:var(--err);color:#1a0606;border-color:var(--err);font-weight:600;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--off);box-shadow:0 0 0 3px rgba(255,255,255,.03);}
+  .dot.live{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  .dot.pending{background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  .statustext{font-family:var(--mono);font-size:12px;color:var(--text-dim);}
+
+  nav.tabs{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--bg-panel-alt);}
+  nav.tabs button{
+    background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;
+    padding:12px 14px;color:var(--text-dim);font-size:13px;font-weight:600;letter-spacing:.01em;
+  }
+  nav.tabs button.active{color:var(--accent2);border-bottom-color:var(--accent2);}
+  nav.tabs button:hover{color:var(--text);}
+
+  main{padding:18px 20px 60px;max-width:1400px;margin:0 auto;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+  .toolbar input[type=text]{min-width:220px;flex:1;}
+  .toolbar .spacer{flex:1;}
+  .pill{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--text-dim);}
+
+  .card{background:var(--bg-panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;}
+  .card h2{margin:0 0 4px;font-size:14px;letter-spacing:.02em;color:var(--text);}
+  .card .hint{font-size:12px;color:var(--text-dim);margin:0 0 12px;line-height:1.5;}
+
+  .drop{
+    border:1.5px dashed var(--line);border-radius:10px;padding:26px;text-align:center;
+    color:var(--text-dim);font-size:13px;cursor:pointer;transition:border-color .15s,color .15s;
+  }
+  .drop:hover, .drop.drag{border-color:var(--accent2);color:var(--accent2);}
+  .drop input{display:none;}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{
+    text-align:left;font-family:var(--mono);font-weight:600;color:var(--text-dim);
+    text-transform:uppercase;font-size:10.5px;letter-spacing:.04em;
+    padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg-panel);
+  }
+  tbody td{padding:7px 10px;border-bottom:1px solid #16232a;vertical-align:middle;}
+  tbody tr:hover{background:#0e1a20;}
+  .scrollbox{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px;}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:5px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.03em;}
+  .badge.on{background:rgba(62,207,110,.15);color:var(--ok);border:1px solid rgba(62,207,110,.4);}
+  .badge.off{background:rgba(74,91,99,.2);color:#9fb1b8;border:1px solid var(--line);}
+  .badge.err{background:rgba(255,93,93,.15);color:var(--err);border:1px solid rgba(255,93,93,.4);}
+  .badge.nd{background:rgba(255,180,84,.13);color:var(--warn);border:1px solid rgba(255,180,84,.4);}
+
+  .tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10.5px;font-family:var(--mono);border:1px solid var(--line);color:var(--text-dim);}
+  .tag.circuit{color:var(--accent2);border-color:rgba(79,209,197,.4);}
+  .tag.logic{color:var(--accent);border-color:rgba(255,180,84,.4);}
+  .tag.mode{color:#c792ea;border-color:rgba(199,146,234,.4);}
+  .tag.di{color:#82aaff;border-color:rgba(130,170,255,.4);}
+  .tag.zone{color:#7fd99a;border-color:rgba(127,217,154,.4);}
+  .tag.fw{color:#6b7d85;border-color:var(--line);}
+
+  .mono{font-family:var(--mono);}
+  .dim{color:var(--text-dim);}
+  input.name-edit{width:100%;min-width:140px;font-family:var(--sans);font-size:12.5px;padding:5px 7px;}
+  .empty{padding:30px;text-align:center;color:var(--text-dim);font-size:13px;}
+
+  footer{padding:20px;text-align:center;color:var(--text-dim);font-size:11px;font-family:var(--mono);}
+
+  /* --- Pannello visuale --- */
+  .tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .tile{
+    background:var(--bg-panel-alt);border:1px solid var(--line);border-radius:10px;
+    padding:12px 12px 10px;cursor:pointer;transition:border-color .15s, transform .1s;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .tile:hover{border-color:var(--accent2);transform:translateY(-1px);}
+  .tile-led{width:14px;height:14px;border-radius:50%;background:var(--off);}
+  .tile.on .tile-led{background:var(--ok);box-shadow:0 0 10px var(--ok);}
+  .tile.off .tile-led{background:var(--off);}
+  .tile.err .tile-led{background:var(--err);box-shadow:0 0 10px var(--err);}
+  .tile.nd .tile-led{background:var(--warn);box-shadow:0 0 10px var(--warn);}
+  .tile-name{font-size:12.5px;font-weight:600;line-height:1.3;min-height:32px;}
+  .tile-meta{font-family:var(--mono);font-size:10.5px;color:var(--text-dim);}
+  .tile-cmd{display:flex;gap:6px;margin-top:2px;}
+  .tile-btn{flex:1;border:1px solid var(--line);border-radius:5px;padding:6px 0;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;background:var(--bg-panel);color:var(--text-dim);user-select:none;-webkit-user-select:none;touch-action:none;}
+  .tile-btn.on:hover, .tile-btn.on:active{border-color:var(--ok);color:var(--ok);background:rgba(62,207,110,.12);}
+  .tile-btn.off:hover, .tile-btn.off:active{border-color:var(--err);color:var(--err);background:rgba(255,93,93,.12);}
+
+  .chart-card canvas{width:100%;height:160px;display:block;}
+  .chart-card .chart-label{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:6px;}
+
+  .battery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+  .battery-card{background:var(--bg-panel-alt);border:1px solid var(--line);border-radius:10px;padding:12px;}
+  .battery-head{display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;}
+  .battery-card input.name-edit{width:100%;margin-bottom:8px;}
+  .battery-vals{display:flex;gap:16px;margin-bottom:8px;}
+  .battery-vals div{display:flex;align-items:baseline;gap:4px;}
+  .battery-vals b{font-family:var(--mono);font-size:18px;color:var(--text);}
+  .battery-vals span{font-size:11px;color:var(--text-dim);}
+  .spark{width:100%;height:50px;display:block;}
+  .tank-card{background:var(--bg-panel-alt);border:1px solid var(--line);border-radius:10px;padding:12px;}
+  .tank-bar-bg{width:100%;height:12px;background:#1a2a32;border-radius:6px;overflow:hidden;margin:8px 0;}
+  .tank-bar{height:100%;border-radius:6px;transition:width .5s;}
+  .tank-bar.water{background:linear-gradient(90deg,#4fd1c5,#2d9cdb);}
+  .tank-bar.fuel{background:linear-gradient(90deg,#ffb454,#f97316);}
+  .tank-bar.gray{background:linear-gradient(90deg,#7d939c,#4a5b63);}
+  .tank-bar.black{background:linear-gradient(90deg,#2d3748,#1a202c);}
+  .tank-bar.oil{background:linear-gradient(90deg,#d4a017,#92610a);}
+  .alarm-indicator{display:flex;align-items:center;gap:6px;background:rgba(255,93,93,.15);border:1px solid rgba(255,93,93,.5);border-radius:8px;padding:5px 10px;cursor:default;}
+  .alarm-dot{width:10px;height:10px;border-radius:50%;background:var(--err);animation:blink 1s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+  #btnMuteAlarm{font-size:16px;background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 8px;}
+  #btnMuteAlarm.muted{opacity:.4;}
+  .alarm-row-warn{background:rgba(255,180,84,.07);}
+  .alarm-row-err{background:rgba(255,93,93,.08);}
+  .threshold-ctrl{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-dim);}
+  .threshold-ctrl input{width:55px;padding:3px 5px;font-family:var(--mono);}
+  .kv{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:10px;}
+  .kv b{color:var(--text);}
+  .warning{background:rgba(255,180,84,.08);border:1px solid rgba(255,180,84,.3);color:var(--warn);
+    border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:14px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="title">CZone Monitor</div>
+    <div class="sub">Configurazione <b id="projName">—</b> · Live via Waveshare USB-CAN-A</div>
+  </div>
+
+  <div class="conn">
+    <span class="alarm-indicator" id="alarmIndicator" style="display:none;" title="Allarmi attivi">
+      <span class="alarm-dot"></span>
+      <span id="alarmCount" class="mono" style="font-size:12px;"></span>
+    </span>
+    <button id="btnMuteAlarm" style="display:none;" title="Silenzia/Riattiva suono allarmi">🔔</button>
+    <span class="dot" id="connDot"></span>
+    <span class="statustext" id="connText">Non connesso</span>
+
+    <select id="connMode" title="Modalità di connessione">
+      <option value="serial">Web Serial (USB locale)</option>
+      <option value="ws">WebSocket (remoto)</option>
+    </select>
+
+    <span id="serialControls">
+      <select id="baudSelect" title="Baud rate seriale">
+        <option value="2000000" selected>2 000 000 (default)</option>
+        <option value="1228800">1 228 800</option>
+        <option value="115200">115 200</option>
+        <option value="38400">38 400</option>
+        <option value="19200">19 200</option>
+        <option value="9600">9 600</option>
+      </select>
+    </span>
+
+    <span id="wsControls" style="display:none;gap:6px;align-items:center;" class="conn">
+      <select id="wsPreset" title="Seleziona URL predefinito o scegli Personalizzato">
+        <option value="ws://localhost:8765/ws">Locale (PC di bordo)</option>
+        <option value="">Personalizzato…</option>
+      </select>
+      <input type="text" id="wsUrl" placeholder="wss://abc.lhr.life/ws" style="min-width:220px;display:none;" title="URL WebSocket remoto">
+      <input type="password" id="wsToken" placeholder="Token (opzionale)" style="width:130px;" title="Token di sicurezza impostato nel bridge">
+    </span>
+
+    <button id="btnConnect" class="primary">Connetti</button>
+    <button id="btnDisconnect" disabled>Disconnetti</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="config">Configurazione (.zcf)</button>
+  <button data-tab="live">Canali Live</button>
+  <button data-tab="panel">Pannello Live</button>
+  <button data-tab="raw">Log Raw CAN</button>
+</nav>
+
+<main>
+
+  <!-- TAB CONFIG -->
+  <section class="panel active" id="tab-config">
+    <div class="card">
+      <h2>Carica file .zcf</h2>
+      <p class="hint">Estrazione euristica delle stringhe interne (formato Pascal: byte di lunghezza + testo) dal file binario di configurazione CZone. Classificazione automatica per categoria; verifica/correggi manualmente dove necessario.</p>
+      <label class="drop" id="dropZone">
+        <input type="file" id="fileInput" accept=".zcf">
+        <span id="dropLabel">Trascina qui il file .zcf oppure clicca per selezionarlo</span>
+      </label>
+    </div>
+
+    <div class="card" id="configResults" style="display:none;">
+      <h2>Elementi di configurazione</h2>
+      <div class="kv">
+        <span>Voci estratte: <b id="cfgCount">0</b></span>
+        <span>Circuiti/Uscite: <b id="cfgCircuits">0</b></span>
+        <span>Logic Block: <b id="cfgLogic">0</b></span>
+        <span>Modalità: <b id="cfgModes">0</b></span>
+      </div>
+      <div class="toolbar">
+        <input type="text" id="cfgFilter" placeholder="Filtra per nome…">
+        <select id="cfgCategoryFilter">
+          <option value="">Tutte le categorie</option>
+          <option value="circuit">Circuito/Uscita</option>
+          <option value="logic">Logic Block</option>
+          <option value="mode">Modalità</option>
+          <option value="di">Ingresso digitale</option>
+          <option value="zone">Zona retroilluminazione</option>
+          <option value="fw">Firmware/Modulo</option>
+        </select>
+        <span class="spacer"></span>
+        <button id="btnExportCfgCsv">Esporta CSV</button>
+      </div>
+      <div class="scrollbox">
+        <table>
+          <thead><tr>
+            <th style="width:90px;">Offset</th>
+            <th style="width:70px;">Byte prec.</th>
+            <th style="width:140px;">Categoria</th>
+            <th>Nome</th>
+          </tr></thead>
+          <tbody id="cfgTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB LIVE -->
+  <section class="panel" id="tab-live">
+    <div class="warning">
+      Il bitrate del bus CAN (es. 250 kbps) va impostato in anticipo sull'adattatore Waveshare con il suo tool di configurazione: questa app dialoga solo con la porta seriale virtuale al baud selezionato sopra e decodifica i frame CAN/NMEA2000 ricevuti. Nessun comando viene inviato al bus: sola lettura.
+    </div>
+    <div class="card">
+      <h2>Switch Bank Status (PGN 127501)</h2>
+      <p class="hint">Ogni riga è un canale (istanza switch bank + indice 1–28) visto sul bus. Associa un nome dalla configurazione .zcf oppure scrivilo a mano: viene salvato nel browser per il progetto <span class="mono" id="projName2">—</span>.</p>
+      <div class="kv">
+        <span>Frame totali: <b id="frameCount">0</b></span>
+        <span>Frame/s: <b id="frameRate">0</b></span>
+        <span>Canali attivi: <b id="liveChCount">0</b></span>
+      </div>
+      <div class="toolbar">
+        <select id="instanceFilter"><option value="">Tutte le istanze</option></select>
+        <input type="text" id="liveFilter" placeholder="Filtra per nome o stato…">
+        <span class="spacer"></span>
+        <button id="btnExportLiveCsv">Esporta CSV</button>
+      </div>
+      <div class="scrollbox">
+        <table>
+          <thead><tr>
+            <th style="width:70px;">Istanza</th>
+            <th style="width:60px;">Canale</th>
+            <th style="width:110px;">Stato</th>
+            <th>Nome (associa da .zcf)</th>
+            <th style="width:90px;">Sorgente</th>
+            <th style="width:110px;">Ultimo agg.</th>
+          </tr></thead>
+          <tbody id="liveTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="liveEmpty">Nessun dato ancora. Connetti l'adattatore per vedere i canali.</div>
+    </div>
+  </section>
+
+  <!-- TAB PANNELLO LIVE -->
+  <section class="panel" id="tab-panel">
+    <div class="card" id="alarmCard" style="display:none;border-color:var(--err);">
+      <h2 style="color:var(--err);">⚠ Allarmi attivi</h2>
+      <div class="scrollbox" style="max-height:18vh;">
+        <table>
+          <thead><tr>
+            <th style="width:80px;">Gravità</th>
+            <th>Descrizione</th>
+            <th style="width:110px;">Da</th>
+          </tr></thead>
+          <tbody id="alarmTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Comandi (TX) — Switch Bank Control, PGN 127502</h2>
+      <div class="warning">
+        Qui si inviano comandi reali sul bus CAN connesso, non solo lettura. Tieni premuto il pulsante ON o OFF finché il led del canale cambia stato nella plancia — rilascia quando risponde.
+      </div>
+      <div class="toolbar">
+        <label class="mono dim" style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="txEnableCheck"> Abilita invio comandi
+        </label>
+        <span class="pill">Indirizzo sorgente
+          <input type="number" id="txSrcInput" min="0" max="251" value="35" style="width:60px;padding:2px 4px;margin-left:4px;">
+        </span>
+        <span class="pill">Priorità
+          <input type="number" id="txPriorityInput" min="0" max="7" value="3" style="width:46px;padding:2px 4px;margin-left:4px;">
+        </span>
+        <span class="pill">Riempimento canali non comandati
+          <select id="txFillSelect" style="margin-left:4px;">
+            <option value="3" selected>3 (non cambiare, default)</option>
+            <option value="0">0 (forza OFF)</option>
+            <option value="1">1 (forza ON)</option>
+            <option value="2">2 (riservato)</option>
+          </select>
+        </span>
+        <span class="pill">Intervallo tra frame
+          <input type="number" id="txIntervalInput" min="10" max="2000" value="100" style="width:56px;padding:2px 4px;margin-left:4px;"> ms
+        </span>
+      </div>
+      <div class="scrollbox" style="max-height:22vh;">
+        <table>
+          <thead><tr>
+            <th style="width:90px;">Ora</th>
+            <th style="width:90px;">Canale</th>
+            <th style="width:70px;">Comando</th>
+            <th style="width:50px;">×N</th>
+            <th style="width:140px;">ID CAN</th>
+            <th>Dati inviati</th>
+          </tr></thead>
+          <tbody id="txLogBody"><tr><td colspan="5" class="empty">Nessun comando inviato ancora</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Plancia canali</h2>
+      <p class="hint">Vista a led/tile come un quadro elettrico: ogni riquadro è un canale dello Switch Bank Status (PGN 127501). Clicca il nome per assegnargli un'etichetta (sincronizzato con la tab Canali Live). Con i comandi abilitati compaiono anche i pulsanti ON/OFF.</p>
+      <div class="tile-grid" id="tileGrid"></div>
+      <div class="empty" id="tileEmpty">Nessun canale ancora ricevuto. Connetti l'adattatore.</div>
+    </div>
+
+    <div class="card chart-card">
+      <h2>Attività bus CAN</h2>
+      <div class="chart-label">Frame ricevuti al secondo, ultimi 60s</div>
+      <canvas id="activityChart" width="1100" height="160"></canvas>
+    </div>
+
+    <div class="card">
+      <h2>Batterie / Caricabatterie (PGN 127508)</h2>
+      <p class="hint">Tensione e corrente per ogni combinazione sorgente CAN + istanza, così caricabatterie diversi con la stessa numerazione di istanza non si sovrascrivono a vicenda. Associa il nome dalla config .zcf (es. "CHG Servizi - DC 1") per riconoscerli a colpo d'occhio.</p>
+      <div class="battery-grid" id="batteryCards"></div>
+    </div>
+
+    <div class="card">
+      <h2>Stato caricabatterie (PGN 127507)</h2>
+      <p class="hint">Stato operativo del caricabatterie (online/spento, fase di carica). Se un caricabatterie risulta "Disabilitato" o assente da questa lista, è coerente vedere 0V/0A sulla scheda batteria collegata: non è un problema di lettura, il dispositivo non sta caricando.</p>
+      <div class="scrollbox">
+        <table>
+          <thead><tr>
+            <th style="width:60px;">Src</th>
+            <th style="width:80px;">Charger ist.</th>
+            <th style="width:80px;">Batteria ist.</th>
+            <th style="width:130px;">Stato</th>
+            <th>Nome (associa da .zcf)</th>
+            <th style="width:90px;">Eq. pend.</th>
+            <th style="width:90px;">Ultimo agg.</th>
+          </tr></thead>
+          <tbody id="chargerTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="chargerEmpty">Nessun PGN 127507 ricevuto ancora.</div>
+    </div>
+
+    <div class="card">
+      <h2>Serbatoi (PGN 127505)</h2>
+      <p class="hint">Livello e capacità per ogni serbatoio. Imposta le soglie di allarme (% livello): BASSO per carburante/acqua dolce (allarme sotto soglia), ALTO per acque nere/grigie (allarme sopra soglia).</p>
+      <div class="toolbar" id="tankThresholdBar" style="flex-wrap:wrap;gap:8px;margin-bottom:10px;"></div>
+      <div class="battery-grid" id="tankCards"></div>
+      <div class="empty" id="tankEmpty">Nessun dato serbatoio (PGN 127505) ricevuto.</div>
+    </div>
+
+    <div class="card">
+      <h2>Inverter (PGN 127744)</h2>
+      <p class="hint">Stato operativo inverter. Src corrisponde all'indirizzo CAN del dispositivo (es. MultiPlus = src 6).</p>
+      <div class="scrollbox">
+        <table>
+          <thead><tr>
+            <th style="width:60px;">Src</th>
+            <th style="width:80px;">DC Ist.</th>
+            <th style="width:80px;">AC Ist.</th>
+            <th style="width:130px;">Stato</th>
+            <th style="width:80px;">Abilitato</th>
+            <th style="width:90px;">Ultimo agg.</th>
+          </tr></thead>
+          <tbody id="inverterTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="inverterEmpty">Nessun dato inverter (PGN 127744) ricevuto.</div>
+    </div>
+
+    <div class="card">
+      <h2>Dispositivi in rete (PGN 126996)</h2>
+      <p class="hint">Tutti i dispositivi Mastervolt/NMEA2000 identificati sul bus CAN. I dispositivi MasterBus appaiono tramite il MasterBus Interface (src 4).</p>
+      <div class="scrollbox" style="max-height:22vh;">
+        <table>
+          <thead><tr>
+            <th style="width:55px;">Src</th>
+            <th>Dispositivo</th>
+            <th style="width:90px;">Model Code</th>
+            <th style="width:90px;">Ultimo agg.</th>
+          </tr></thead>
+          <tbody id="devicesTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="devicesEmpty">Nessun dispositivo identificato ancora.</div>
+    </div>
+
+    <div class="card">
+      <h2>Accesso remoto — TeamViewer</h2>
+      <p class="hint">Inserisci il tuo ID TeamViewer del PC di bordo. Il pulsante apre il collegamento direttamente nel browser (serve TeamViewer installato o l'accesso web TV). L'ID è salvato nel browser, nessuna password viene memorizzata qui.</p>
+      <div class="toolbar">
+        <span class="pill">TeamViewer ID
+          <input type="text" id="tvId" placeholder="123 456 789" style="width:130px;margin-left:6px;font-family:var(--mono);letter-spacing:2px;">
+        </span>
+        <button id="btnTV" class="primary" onclick="openTV()">🖥 Connetti via TeamViewer</button>
+        <span class="dim" style="font-size:11px;font-family:var(--mono);" id="tvStatus"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Dati Mastervolt proprietari (65xxx / 130xxx / MasterBus 6–30k)</h2>
+      <p class="hint">Tutti i PGN proprietari Mastervolt/CZone e MasterBus. Per i dispositivi MasterBus (src ≥ 70) la colonna <b>W2</b> (word[4:6]) contiene spesso il valore principale — la scala esatta richiede le specifiche del protocollo MasterBus da Mastervolt.</p>
+      <div class="toolbar">
+        <input type="text" id="mvPropFilter" placeholder="Filtra per PGN o sorgente…">
+      </div>
+      <div class="scrollbox" style="max-height:30vh;">
+        <table>
+          <thead><tr>
+            <th style="width:75px;">PGN</th>
+            <th>Descrizione</th>
+            <th style="width:55px;">Src</th>
+            <th style="width:80px;">Conteggio</th>
+            <th style="width:75px;">W0</th>
+            <th style="width:75px;">W1</th>
+            <th style="width:75px;">W2</th>
+            <th style="width:155px;">Payload hex</th>
+            <th style="width:75px;">Ultimo agg.</th>
+          </tr></thead>
+          <tbody id="mvPropTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB RAW -->
+  <section class="panel" id="tab-raw">
+    <div class="card">
+      <h2>Riepilogo traffico per PGN</h2>
+      <p class="hint">Utile per scoprire su quale PGN viaggiano davvero i dati di un dispositivo: tieni d'occhio "Ultimi dati" mentre agisci sul caricabatterie (es. attacchi/stacchi la 230V) e individua quale PGN cambia.</p>
+      <div class="toolbar">
+        <input type="text" id="pgnSummaryFilter" placeholder="Filtra per PGN, nome o sorgente…">
+        <span class="spacer"></span>
+        <button id="btnExportPgnSummary">Esporta CSV</button>
+      </div>
+      <div class="scrollbox" style="max-height:30vh;">
+        <table>
+          <thead><tr>
+            <th style="width:90px;">PGN</th>
+            <th>Descrizione</th>
+            <th style="width:70px;">Src</th>
+            <th style="width:80px;">Conteggio</th>
+            <th style="width:90px;">Ultima vista</th>
+            <th style="width:220px;">Ultimi dati</th>
+          </tr></thead>
+          <tbody id="pgnSummaryBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Log frame CAN grezzi</h2>
+      <div class="toolbar">
+        <input type="text" id="rawFilter" placeholder="Filtra per PGN, ID esadecimale o sorgente…">
+        <span class="spacer"></span>
+        <button id="btnExportRawCsv">Esporta CSV</button>
+        <button id="btnPauseRaw">Pausa</button>
+        <button id="btnClearRaw">Svuota</button>
+      </div>
+      <div class="scrollbox" id="rawScroll">
+        <table>
+          <thead><tr>
+            <th style="width:90px;">Ora</th>
+            <th style="width:100px;">ID CAN</th>
+            <th style="width:50px;">Pri</th>
+            <th style="width:90px;">PGN</th>
+            <th>Descrizione PGN</th>
+            <th style="width:60px;">Src</th>
+            <th style="width:60px;">Dst</th>
+            <th style="width:200px;">Dati</th>
+          </tr></thead>
+          <tbody id="rawTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>CZone Monitor · parsing .zcf euristico + decodifica NMEA2000 over CAN · funziona solo in Chrome/Edge (Web Serial API), serve contesto sicuro (https o localhost)</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------------------------------------------------------- */
+  /* Stato globale                                                     */
+  /* ---------------------------------------------------------------- */
+  const state = {
+    alarms: new Map(),   // chiave stringa -> {key, label, severity, since} — allarmi attivi
+    alarmMuted: false,
+    alarmAudio: null,    // AudioContext inizializzato al primo click utente
+    alarmBeeping: false,
+    tankThresholds: {},  // chiave tank -> {low, high} in %
+    projName: null,
+    cfgEntries: [],
+    port: null,
+    reader: null,
+    writer: null,
+    ws: null,
+    wsAutoReconnect: false,
+    keepReading: false,
+    txEnabled: false,
+    txSourceAddress: 35,
+    txPriority: 3,
+    txFillValue: 3,
+    txRepeat: 0,     // non più usato (hold-to-send)
+    txInterval: 100, // ms tra un frame e il successivo durante la pressione
+    txLog: [],
+    rx: new Uint8Array(0),
+    frameCount: 0,
+    frameTimestamps: [],
+    liveChannels: new Map(), // key: instance:idx -> {instance, idx, state, src, lastSeen}
+    rawLog: [],
+    rawPaused: false,
+    pgnSummary: new Map(), // pgn -> {pgn, name, src, count, lastSeen, lastData}
+    nameMap: {}, // chiave instance:idx -> nome
+    activityHistory: [], // frame/s ultimi 60s
+    battery: new Map(), // chiave "src:istanza" -> {src,instance,voltage,current,temperature,lastSeen,history:[]}
+    batteryNameMap: {}, // chiave "src:istanza" -> nome
+    chargerStatus: new Map(),
+    chargerNameMap: {},
+    tanks: new Map(),       // chiave "src:instance:fluidType" -> {fluidType,level,capacity,src,lastSeen}
+    inverters: new Map(),   // chiave "src:dcInst:acInst" -> {dcInstance,acInstance,operatingState,enabled,src,lastSeen}
+    masterVoltProp: new Map(), // chiave "pgn:src" -> {pgn,src,payload,u16_0,u16_1,lastSeen,count}
+    devices: new Map(),      // chiave src -> {src, modelCode, modelName, lastSeen}
+    fastPacketBuffers: new Map()
+  };
+
+  const PGN_NAMES = {
+    59392:"ISO Acknowledgment", 59904:"ISO Request", 60928:"ISO Address Claim",
+    126992:"System Time", 126996:"Product Information", 126998:"Configuration Information",
+    127245:"Rudder", 127250:"Vessel Heading", 127251:"Rate of Turn",
+    127257:"Attitude", 127488:"Engine Rapid Update", 127489:"Engine Dynamic",
+    127493:"Transmission Parameters", 127501:"Binary Switch Bank Status",
+    127502:"Switch Bank Control", 127503:"AC Input Status", 127504:"AC Output Status",
+    127505:"Fluid Level", 127506:"DC Detailed Status",
+    127507:"Charger Status", 127508:"Battery Status", 127513:"Battery Configuration",
+    127744:"Inverter Status", 127747:"Charger Configuration Status",
+    128259:"Speed", 128267:"Water Depth", 129025:"Position Rapid Update",
+    129026:"COG & SOG Rapid Update", 129029:"GNSS Position Data",
+    130306:"Wind Data", 130310:"Environmental Parameters", 130311:"Environmental Parameters",
+    130312:"Temperature", 130313:"Humidity", 130314:"Actual Pressure", 130316:"Temperature Extended Range",
+    // Mastervolt / CZone proprietari
+    65280:"Mastervolt Cmd (prop.)", 65281:"Mastervolt Resp (prop.)",
+    65284:"Mastervolt DC Measurement (prop.)", 65294:"Mastervolt Device Status (prop.)",
+    65295:"Mastervolt AC Measurement (prop.)", 65300:"Mastervolt AC Config (prop.)",
+    65301:"Mastervolt AC Power (prop.)", 65302:"Mastervolt AC Status (prop.)",
+    65306:"Mastervolt Device Info (prop.)", 65307:"Mastervolt Device Status 2 (prop.)",
+    65308:"Mastervolt DC Status (prop.)", 65312:"Mastervolt Config (prop.)",
+    130817:"Mastervolt Status (prop.)", 130822:"Mastervolt Measurement (prop.)"
+  };
+
+  const FLUID_TYPE_NAME = {0:"Carburante",1:"Acqua Dolce",2:"Acque Grigie",3:"Live Well",4:"Olio",5:"Acque Nere"};
+  const INVERTER_STATE_NAME = {0:"Stand By",1:"Acceso",2:"Bypass Man.",3:"Trasferimento",4:"Boost",8:"Eco Mode",9:"Guasto"};
+
+  const MASTERVOLT_MODEL_CODES = {
+    0x0113:"ChargeMaster 12/50",  0x0133:"ChargeMaster 12/25",
+    0x0153:"MasterShunt 500",     0x0173:"MasterBus Interface",
+    0x0193:"MultiPlus 24/3000",   0x01B3:"ChargeMaster 24/60",
+    0x01D3:"ChargeMaster 24/100", 0x01F3:"MLI Ultra (BMS)",
+    0x0213:"ChargeMaster 12/100", 0x0233:"Solaris 25",
+    0x0253:"Solaris 35",          0x0273:"Solaris 70",
+    0x0293:"MasterShunt 1000",    0x02B3:"MultiPlus 12/3000",
+  };
+
+  // PGN 126996 Product Information — decodifica model code (fast packet: prima word = version DB, seconda = model code)
+  function decodeProductInfo(data){
+    if(data.length < 4) return null;
+    // Frame 0 fast packet: byte[0]=header fp, byte[1]=total len, byte[2-3]=DB version, byte[4-5]=model code
+    // Ma spesso catturiamo frame singoli già parziali — proviamo le prime due word
+    const mc1 = data[0] | (data[1] << 8);
+    const mc2 = data[2] | (data[3] << 8);
+    const name1 = MASTERVOLT_MODEL_CODES[mc1];
+    const name2 = MASTERVOLT_MODEL_CODES[mc2];
+    return name1 || name2 || null;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Tabs                                                               */
+  /* ---------------------------------------------------------------- */
+  document.querySelectorAll("nav.tabs button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Parsing .zcf                                                       */
+  /* ---------------------------------------------------------------- */
+  const MODE_NAMES = ["boat off","day cruising","day docking","night cruising","night docking"];
+  const ZONE_NAMES = ["wheelhouse","outside","engine room","guest/owner/vip","salon/galley","backlight zone"];
+
+  function classify(text){
+    const t = text.toLowerCase();
+    if(/^(c1\.|si\.|coi\.)/.test(t)) return "fw";
+    if(/^di \d/.test(t)) return "di";
+    if(MODE_NAMES.includes(t)) return "mode";
+    if(ZONE_NAMES.some(z=>t.includes(z))) return "zone";
+    if(t.includes("override") || t.startsWith("logic block") || t.startsWith("lb ")) return "logic";
+    return "circuit";
+  }
+
+  function parseZcf(buf){
+    const bytes = new Uint8Array(buf);
+    const entries = [];
+    const seen = new Set();
+    for(let i=0;i<bytes.length-1;i++){
+      const len = bytes[i];
+      if(len < 2 || len > 48) continue;
+      if(i+1+len > bytes.length) continue;
+      let ok = true, text = "";
+      for(let j=0;j<len;j++){
+        const c = bytes[i+1+j];
+        if(c < 0x20 || c > 0x7E){ ok = false; break; }
+        text += String.fromCharCode(c);
+      }
+      if(!ok) continue;
+      const trimmed = text.trim();
+      if(trimmed.length < 2 || !/[A-Za-z]/.test(trimmed)) continue;
+      const key = i+":"+trimmed;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      entries.push({
+        offset: i,
+        precByte: i>0 ? bytes[i-1] : null,
+        length: len,
+        text: trimmed,
+        category: classify(trimmed)
+      });
+    }
+    return entries;
+  }
+
+  function extractProjectName(bytes){
+    // header: ... [len byte][project name string], cerca la prima stringa lunga col pattern osservato
+    for(let i=0;i<Math.min(bytes.length-1, 64);i++){
+      const len = bytes[i];
+      if(len>=4 && len<=40 && i+1+len<=bytes.length){
+        let txt=""; let ok=true;
+        for(let j=0;j<len;j++){
+          const c=bytes[i+1+j];
+          if(c<0x20||c>0x7E){ok=false;break;}
+          txt+=String.fromCharCode(c);
+        }
+        if(ok && /^[A-Za-z0-9_\-]+$/.test(txt.trim())){
+          return txt.trim();
+        }
+      }
+    }
+    return "config-sconosciuta";
+  }
+
+  function renderCfgTable(){
+    const filterText = document.getElementById("cfgFilter").value.toLowerCase();
+    const catFilter = document.getElementById("cfgCategoryFilter").value;
+    const tbody = document.getElementById("cfgTableBody");
+    tbody.innerHTML = "";
+    const catLabel = {circuit:"Circuito/Uscita",logic:"Logic Block",mode:"Modalità",di:"Ingresso digitale",zone:"Zona retroillum.",fw:"Firmware/Modulo"};
+    let shown = 0;
+    state.cfgEntries.forEach(e=>{
+      if(catFilter && e.category !== catFilter) return;
+      if(filterText && !e.text.toLowerCase().includes(filterText)) return;
+      shown++;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono dim">0x${e.offset.toString(16).padStart(4,"0")}</td>
+        <td class="mono dim">${e.precByte!==null ? "0x"+e.precByte.toString(16).padStart(2,"0") : "—"}</td>
+        <td><span class="tag ${e.category}">${catLabel[e.category]}</span></td>
+        <td>${escapeHtml(e.text)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    if(shown===0){
+      tbody.innerHTML = `<tr><td colspan="4" class="empty">Nessun elemento corrisponde al filtro</td></tr>`;
+    }
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  }
+
+  function handleZcfFile(file){
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const buf = reader.result;
+      const bytes = new Uint8Array(buf);
+      state.projName = extractProjectName(bytes);
+      state.cfgEntries = parseZcf(buf);
+      document.getElementById("projName").textContent = state.projName;
+      document.getElementById("projName2").textContent = state.projName;
+      document.getElementById("dropLabel").textContent = "✓ " + file.name + " — carica un altro file per sostituire";
+      document.getElementById("configResults").style.display = "block";
+
+      const counts = {circuit:0, logic:0, mode:0};
+      state.cfgEntries.forEach(e=>{ if(counts[e.category]!==undefined) counts[e.category]++; });
+      document.getElementById("cfgCount").textContent = state.cfgEntries.length;
+      document.getElementById("cfgCircuits").textContent = counts.circuit;
+      document.getElementById("cfgLogic").textContent = counts.logic;
+      document.getElementById("cfgModes").textContent = counts.mode;
+
+      renderCfgTable();
+      loadNameMap();
+      loadBatteryNameMap();
+      loadChargerNameMap();
+      populateNameDatalist();
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  const fileInput = document.getElementById("fileInput");
+  const dropZone = document.getElementById("dropZone");
+  fileInput.addEventListener("change", e=>{
+    if(e.target.files[0]) handleZcfFile(e.target.files[0]);
+  });
+  ["dragover","dragenter"].forEach(ev=>dropZone.addEventListener(ev, e=>{e.preventDefault(); dropZone.classList.add("drag");}));
+  ["dragleave","drop"].forEach(ev=>dropZone.addEventListener(ev, e=>{e.preventDefault(); dropZone.classList.remove("drag");}));
+  dropZone.addEventListener("drop", e=>{
+    const f = e.dataTransfer.files[0];
+    if(f) handleZcfFile(f);
+  });
+
+  document.getElementById("cfgFilter").addEventListener("input", renderCfgTable);
+  document.getElementById("cfgCategoryFilter").addEventListener("change", renderCfgTable);
+
+  document.getElementById("btnExportCfgCsv").addEventListener("click", ()=>{
+    let csv = "offset,byte_precedente,categoria,nome\n";
+    state.cfgEntries.forEach(e=>{
+      csv += `0x${e.offset.toString(16)},${e.precByte!==null?"0x"+e.precByte.toString(16):""},${e.category},"${e.text.replace(/"/g,'""')}"\n`;
+    });
+    downloadText(csv, "czone_config.csv");
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Mappa nomi canale -> persistita in localStorage per progetto       */
+  /* ---------------------------------------------------------------- */
+  function nameMapKey(){
+    return "czoneMonitor::nameMap::" + (state.projName || "default");
+  }
+  function loadNameMap(){
+    try{
+      state.nameMap = JSON.parse(localStorage.getItem(nameMapKey()) || "{}");
+    }catch(e){ state.nameMap = {}; }
+  }
+  function saveNameMap(){
+    try{ localStorage.setItem(nameMapKey(), JSON.stringify(state.nameMap)); }catch(e){}
+  }
+  function batteryNameMapKey(){
+    return "czoneMonitor::batteryNameMap::" + (state.projName || "default");
+  }
+  function loadBatteryNameMap(){
+    try{
+      state.batteryNameMap = JSON.parse(localStorage.getItem(batteryNameMapKey()) || "{}");
+    }catch(e){ state.batteryNameMap = {}; }
+  }
+  function saveBatteryNameMap(){
+    try{ localStorage.setItem(batteryNameMapKey(), JSON.stringify(state.batteryNameMap)); }catch(e){}
+  }
+  function chargerNameMapKey(){
+    return "czoneMonitor::chargerNameMap::" + (state.projName || "default");
+  }
+  function loadChargerNameMap(){
+    try{
+      state.chargerNameMap = JSON.parse(localStorage.getItem(chargerNameMapKey()) || "{}");
+    }catch(e){ state.chargerNameMap = {}; }
+  }
+  function saveChargerNameMap(){
+    try{ localStorage.setItem(chargerNameMapKey(), JSON.stringify(state.chargerNameMap)); }catch(e){}
+  }
+  function populateNameDatalist(){
+    let dl = document.getElementById("cfgNamesDatalist");
+    if(!dl){
+      dl = document.createElement("datalist");
+      dl.id = "cfgNamesDatalist";
+      document.body.appendChild(dl);
+    }
+    dl.innerHTML = "";
+    const names = [...new Set(state.cfgEntries.filter(e=>e.category==="circuit"||e.category==="logic").map(e=>e.text))];
+    names.forEach(n=>{
+      const opt = document.createElement("option");
+      opt.value = n;
+      dl.appendChild(opt);
+    });
+  }
+  loadNameMap();
+  loadBatteryNameMap();
+  loadChargerNameMap();
+
+  /* ---------------------------------------------------------------- */
+  /* Decodifica CAN ID -> NMEA2000 (priorità, PGN, sorgente, dest.)     */
+  /* ---------------------------------------------------------------- */
+  function decodeCanId(id){
+    const priority = (id >>> 26) & 0x7;
+    const dp = (id >>> 24) & 0x1;
+    const pf = (id >>> 16) & 0xFF;
+    const ps = (id >>> 8) & 0xFF;
+    const src = id & 0xFF;
+    let pgn, dst = 255;
+    if(pf < 240){
+      pgn = (dp << 16) | (pf << 8);
+      dst = ps;
+    } else {
+      pgn = (dp << 16) | (pf << 8) | ps;
+    }
+    return {priority, pgn, src, dst};
+  }
+
+  function decode127501(data){
+    const instance = data[0];
+    const channels = [];
+    for(let i=0;i<28;i++){
+      const byteIdx = 1 + Math.floor((i*2)/8);
+      const bitOffset = (i*2) % 8;
+      const byte = data[byteIdx] !== undefined ? data[byteIdx] : 0;
+      channels.push((byte >> bitOffset) & 0x3);
+    }
+    return {instance, channels};
+  }
+
+  const STATE_LABEL = {0:["OFF","off"], 1:["ON","on"], 2:["ERR","err"], 3:["N/D","nd"]};
+
+  /* ---------------------------------------------------------------- */
+  /* Trasmissione comandi: PGN 127502 Switch Bank Control               */
+  /* Sia 127501 che 127502 sono PDU2 (broadcast, pf=242 fisso),         */
+  /* quindi non serve un indirizzo di destinazione separato.            */
+  /* Da VERIFICARE sul banco prova: valore di riempimento canali non    */
+  /* comandati (default 3="non cambiare"), indirizzo sorgente, priorità.*/
+  /* ---------------------------------------------------------------- */
+  function encodeWaveshareFrame(extended, id, data){
+    const type = 0xC0 | (extended ? 0x20 : 0) | (data.length & 0x0F);
+    const idLen = extended ? 4 : 2;
+    const idBytes = [];
+    for(let i=0;i<idLen;i++){ idBytes.push((id >>> (8*i)) & 0xFF); }
+    return new Uint8Array([0xAA, type, ...idBytes, ...data, 0x55]);
+  }
+
+  function buildCanIdForPgn(pgn, priority, sourceAddress){
+    const dp = (pgn >> 16) & 0x1;
+    const pf = (pgn >> 8) & 0xFF;
+    const ps = pgn & 0xFF; // valido perché pf>=240 (PDU2/broadcast) per 127501 e 127502
+    return ((priority & 0x7) << 26) | (dp << 24) | (pf << 16) | (ps << 8) | (sourceAddress & 0xFF);
+  }
+
+  function buildSwitchControlData(instance, channelIdx, on, fillValue){
+    const data = new Uint8Array(8);
+    data[0] = instance & 0xFF;
+    for(let i=0;i<7;i++){
+      let b = 0;
+      for(let bit=0; bit<4; bit++){ b |= (fillValue & 0x3) << (bit*2); }
+      data[1+i] = b;
+    }
+    const byteIdx = 1 + Math.floor(((channelIdx-1)*2)/8);
+    const bitOffset = ((channelIdx-1)*2) % 8;
+    const mask = 0x3 << bitOffset;
+    data[byteIdx] = (data[byteIdx] & ~mask) | (((on?1:0) & 0x3) << bitOffset);
+    return data;
+  }
+
+  let txHoldActive = false;
+
+  async function sendSwitchLoop(instance, channelIdx, on){
+    const pgn = 127502;
+    const id = buildCanIdForPgn(pgn, state.txPriority, state.txSourceAddress);
+    const data = buildSwitchControlData(instance, channelIdx, on, state.txFillValue);
+    const frame = encodeWaveshareFrame(true, id, data);
+    let count = 0;
+    while(txHoldActive && state.writer){
+      try{
+        await state.writer.write(frame);
+      }catch(e){ break; }
+      count++;
+      await new Promise(r => setTimeout(r, state.txInterval));
+    }
+    state.txLog.unshift({
+      ts: Date.now(), instance, channelIdx, on,
+      idHex: "0x" + id.toString(16).padStart(8,"0"),
+      dataHex: fmtData(data),
+      repeat: count
+    });
+    if(state.txLog.length > 30) state.txLog.length = 30;
+    renderTxLog();
+  }
+
+  function startHold(instance, channelIdx, on){
+    if(!state.writer){ alert("Non connesso: impossibile inviare comandi."); return; }
+    txHoldActive = true;
+    sendSwitchLoop(instance, channelIdx, on);
+  }
+
+  function stopHold(){
+    txHoldActive = false;
+  }
+
+  function renderTxLog(){
+    const tbody = document.getElementById("txLogBody");
+    if(!tbody) return;
+    tbody.innerHTML = state.txLog.map(e=>{
+      const t = new Date(e.ts).toLocaleTimeString("it-IT", {hour12:false});
+      return `<tr>
+        <td class="mono dim">${t}</td>
+        <td class="mono">${e.instance}.${e.channelIdx}</td>
+        <td><span class="badge ${e.on?"on":"off"}">${e.on?"ON":"OFF"}</span></td>
+        <td class="mono dim">×${e.repeat}</td>
+        <td class="mono dim">${e.idHex}</td>
+        <td class="mono dim">${e.dataHex}</td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="6" class="empty">Nessun comando inviato ancora</td></tr>`;
+  }
+
+  function toSigned16(v){ return v > 0x7FFF ? v - 0x10000 : v; }
+
+  function decode127508(data){
+    if(data.length < 5) return null;
+    const instance = data[0];
+    const voltage = toSigned16(data[1] | (data[2] << 8)) * 0.01;
+    const current = toSigned16(data[3] | (data[4] << 8)) * 0.1;
+    let temperature = null;
+    if(data.length >= 7){
+      const tempRaw = data[5] | (data[6] << 8);
+      if(tempRaw !== 0xFFFF) temperature = tempRaw * 0.01 - 273.15;
+    }
+    return { instance, voltage, current, temperature };
+  }
+
+  const CHARGE_STATE = {
+    0:["Non in carica","off"], 1:["Bulk","on"], 2:["Absorption","on"],
+    3:["Overcharge","err"], 4:["Equalize","nd"], 5:["Float","on"],
+    6:["No Float","nd"], 7:["Constant V/I","on"], 8:["Disabilitato","off"], 9:["Guasto","err"]
+  };
+
+  function decode127505(data){
+    if(data.length < 7) return null;
+    const instance = data[0] & 0x0F;
+    const fluidType = (data[0] >> 4) & 0x0F;
+    const rawLevel = data[1] | (data[2] << 8);
+    const rawCap   = data[3] | (data[4]<<8) | (data[5]<<16) | (data[6]<<24);
+    const level    = (rawLevel === 0xFFFF || rawLevel * 0.004 > 100.04) ? null : Math.round(rawLevel * 0.004 * 10) / 10;
+    const capacity = (rawCap === 0xFFFFFFFF || rawCap === 0) ? null : Math.round(rawCap * 0.1);
+    return { instance, fluidType, level, capacity };
+  }
+
+  function decode127744(data){
+    if(data.length < 2) return null;
+    const dcInstance = data[0] & 0x0F;
+    const acInstance = (data[0] >> 4) & 0x0F;
+    const operatingState = data[1] & 0x0F;
+    const enabled = ((data[1] >> 4) & 0x3) === 1;
+    return { dcInstance, acInstance, operatingState, enabled };
+  }
+
+  function decode127503(data){
+    if(data.length < 3) return null;
+    const connectionNumber = data[0];
+    const line = data[1] & 0x3;
+    const numLines = (data[1] >> 2) & 0xF;
+    // frequenza (1/128 Hz) e tensione se presenti
+    const freq = data.length >= 4 ? ((data[2] | (data[3]<<8)) / 128).toFixed(1) : null;
+    return { connectionNumber, line, numLines, freq };
+  }
+
+  function decode127504(data){
+    if(data.length < 2) return null;
+    const connectionNumber = data[0];
+    const line = data[1] & 0x3;
+    const numLines = (data[1] >> 2) & 0xF;
+    return { connectionNumber, line, numLines };
+  }
+
+  // Estrai i byte di payload Mastervolt proprietari (salta i 2 byte manuf. code)
+  function decodeMasterVoltProp(data){
+    if(data.length < 3) return null;
+    // Verifica manufacturer code 0x9927
+    if(data[0] !== 0x27 || data[1] !== 0x99) return null;
+    const payload = Array.from(data.slice(2));
+    const u16_0 = payload[0] | (payload[1] << 8);
+    const u16_1 = payload.length >= 4 ? (payload[2] | (payload[3] << 8)) : null;
+    return { payload, u16_0, u16_1 };
+  }
+
+  function decode127507(data){
+    if(data.length < 4) return null;
+    const chargerInstance = data[0];
+    const batteryInstance = data[1];
+    const operatingState = data[2] & 0x0F;
+    const chargeMode = (data[2] >> 4) & 0x0F;
+    const enabled = (data[3] & 0x03) === 1;
+    const equalizationPending = ((data[3] >> 2) & 0x03) === 1;
+    let equalizationTimeRemaining = null;
+    if(data.length >= 6){
+      const raw = data[4] | (data[5] << 8);
+      if(raw !== 0xFFFF) equalizationTimeRemaining = raw;
+    }
+    return { chargerInstance, batteryInstance, operatingState, chargeMode, enabled, equalizationPending, equalizationTimeRemaining };
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Web Serial: connessione e parsing frame variable-length            */
+  /* protocollo Waveshare: AA [TYPE] [ID 2/4 byte LE] [DATA] 55          */
+  /* TYPE: bit5=extended, bit4=remote, bit0-3=DLC                       */
+  /* ---------------------------------------------------------------- */
+  const btnConnect = document.getElementById("btnConnect");
+  const btnDisconnect = document.getElementById("btnDisconnect");
+  const connDot = document.getElementById("connDot");
+  const connText = document.getElementById("connText");
+
+  document.getElementById("connMode").addEventListener("change", e=>{
+    const ws = e.target.value === "ws";
+    document.getElementById("serialControls").style.display = ws ? "none" : "";
+    document.getElementById("wsControls").style.display = ws ? "flex" : "none";
+  });
+
+  document.getElementById("wsPreset").addEventListener("change", e=>{
+    const custom = e.target.value === "";
+    document.getElementById("wsUrl").style.display = custom ? "inline-block" : "none";
+  });
+
+  async function connect(){
+    const mode = document.getElementById("connMode").value;
+    if(mode === "ws"){ connectWS(); return; }
+    // --- Web Serial ---
+    if(!("serial" in navigator)){
+      alert("Web Serial API non disponibile in questo browser. Usa Chrome o Edge desktop, su https o localhost.");
+      return;
+    }
+    try{
+      const port = await navigator.serial.requestPort();
+      const baud = Number(document.getElementById("baudSelect").value);
+      await port.open({ baudRate: baud });
+      state.port = port;
+      state.writer = port.writable.getWriter();
+      state.keepReading = true;
+      connDot.className = "dot live";
+      connText.textContent = "Connesso (Serial) · " + baud + " baud";
+      btnConnect.disabled = true;
+      btnDisconnect.disabled = false;
+      readLoop();
+    }catch(err){
+      connText.textContent = "Errore connessione: " + err.message;
+    }
+  }
+
+  function connectWS(){
+    const preset = document.getElementById("wsPreset").value;
+    let url = preset !== "" ? preset : document.getElementById("wsUrl").value.trim();
+    if(!url && (location.protocol === "https:" || location.protocol === "http:")){
+      const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+      url = wsProto + "//" + location.host + "/ws";
+    }
+    if(!url){ alert("Inserisci l'URL WebSocket (es. wss://abc.lhr.life/ws)"); return; }
+    const token = document.getElementById("wsToken").value.trim();
+    connDot.className = "dot pending";
+    connText.textContent = "Connessione WebSocket…";
+    btnConnect.disabled = true;
+    const ws = new WebSocket(url + (token ? "?token=" + encodeURIComponent(token) : ""));
+    ws.binaryType = "arraybuffer";
+    state.ws = ws;
+    ws.onopen = ()=>{
+      connDot.className = "dot live";
+      connText.textContent = "Connesso (WebSocket remoto)";
+      btnDisconnect.disabled = false;
+    };
+    ws.onmessage = e=>{
+      if(e.data instanceof ArrayBuffer) appendBytes(new Uint8Array(e.data));
+    };
+    ws.onerror = ()=>{ connText.textContent = "Errore WebSocket"; };
+    ws.onclose = ()=>{
+      connDot.className = "dot";
+      connText.textContent = "WebSocket chiuso";
+      btnConnect.disabled = false;
+      btnDisconnect.disabled = true;
+      state.ws = null;
+      // Riconnessione automatica dopo 3s se era connesso
+      if(state.wsAutoReconnect){
+        connText.textContent = "WebSocket chiuso — riconnessione in 3s…";
+        setTimeout(()=>{ if(!state.ws) connectWS(); }, 3000);
+      }
+    };
+    state.wsAutoReconnect = true;
+  }
+
+  async function disconnect(){
+    state.wsAutoReconnect = false;
+    if(state.ws){ state.ws.close(); state.ws = null; }
+    state.keepReading = false;
+    try{ if(state.reader){ await state.reader.cancel(); } }catch(e){}
+    try{ if(state.writer){ state.writer.releaseLock(); } }catch(e){}
+    try{ if(state.port){ await state.port.close(); } }catch(e){}
+    state.port = null; state.reader = null; state.writer = null;
+    connDot.className = "dot";
+    connText.textContent = "Non connesso";
+    btnConnect.disabled = false;
+    btnDisconnect.disabled = true;
+  }
+
+  async function readLoop(){
+    while(state.port && state.keepReading){
+      state.reader = state.port.readable.getReader();
+      try{
+        while(true){
+          const { value, done } = await state.reader.read();
+          if(done) break;
+          if(value) appendBytes(value);
+        }
+      }catch(err){
+        connText.textContent = "Errore lettura: " + err.message;
+      }finally{
+        state.reader.releaseLock();
+      }
+      if(state.keepReading){ connText.textContent = "Connessione persa, in attesa…"; }
+    }
+  }
+
+  function appendBytes(chunk){
+    const merged = new Uint8Array(state.rx.length + chunk.length);
+    merged.set(state.rx, 0);
+    merged.set(chunk, state.rx.length);
+    state.rx = merged;
+    processBuffer();
+  }
+
+  function processBuffer(){
+    let i = 0;
+    const rx = state.rx;
+    while(i < rx.length){
+      if(rx[i] !== 0xAA){ i++; continue; }
+      if(i + 1 >= rx.length) break;
+      const type = rx[i+1];
+      const extended = (type & 0x20) !== 0;
+      const remote = (type & 0x10) !== 0;
+      const dlc = type & 0x0F;
+      const idLen = extended ? 4 : 2;
+      const frameLen = 2 + idLen + dlc + 1;
+      if(i + frameLen > rx.length) break;
+      const endByte = rx[i + frameLen - 1];
+      if(endByte !== 0x55){ i++; continue; }
+      let id = 0;
+      for(let k = idLen - 1; k >= 0; k--){ id = (id * 256) + rx[i + 2 + k]; }
+      const data = rx.slice(i + 2 + idLen, i + 2 + idLen + dlc);
+      handleFrame({ extended, remote, dlc, id, data });
+      i += frameLen;
+    }
+    state.rx = rx.slice(i);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Riassemblatura NMEA2000 "Fast Packet": alcuni PGN (es. 127507)     */
+  /* arrivano spezzati su più frame CAN da 8 byte invece di un singolo  */
+  /* frame. Frame 0: byte0=(seq<<5)|0, byte1=lunghezza tot, payload     */
+  /* byte2-7 (6 byte). Frame succ.: byte0=(seq<<5)|indice, payload      */
+  /* byte1-7 (7 byte), finché non si raggiunge la lunghezza totale.     */
+  /* ---------------------------------------------------------------- */
+  const FAST_PACKET_PGNS = new Set([127503, 127504, 127507]); // PGN multi-frame (fast packet NMEA2000)
+
+  function reassembleFastPacket(dec, frame){
+    if(!FAST_PACKET_PGNS.has(dec.pgn)) return frame.data; // PGN a frame singolo: i dati grezzi sono già il messaggio
+    const d = frame.data;
+    if(d.length < 2) return null;
+    const seq = (d[0] >> 5) & 0x7;
+    const frameIdx = d[0] & 0x1F;
+    const key = dec.pgn + ":" + dec.src;
+    if(frameIdx === 0){
+      const totalLen = d[1];
+      const payload = Array.from(d.slice(2));
+      if(payload.length >= totalLen){
+        state.fastPacketBuffers.delete(key);
+        return new Uint8Array(payload.slice(0, totalLen));
+      }
+      state.fastPacketBuffers.set(key, { seq, totalLen, payload });
+      return null;
+    }
+    const buf = state.fastPacketBuffers.get(key);
+    if(!buf || buf.seq !== seq) return null; // frammento orfano/fuori sequenza: scarta
+    buf.payload.push(...Array.from(d.slice(1)));
+    if(buf.payload.length >= buf.totalLen){
+      state.fastPacketBuffers.delete(key);
+      return new Uint8Array(buf.payload.slice(0, buf.totalLen));
+    }
+    return null;
+  }
+
+  function handleFrame(frame){
+    state.frameCount++;
+    const now = Date.now();
+    state.frameTimestamps.push(now);
+    state.frameTimestamps = state.frameTimestamps.filter(t => now - t < 1000);
+
+    if(!frame.extended){
+      logRaw(frame, null, now);
+      return;
+    }
+    const dec = decodeCanId(frame.id);
+    logRaw(frame, dec, now);
+
+    const payload = reassembleFastPacket(dec, frame);
+    if(!payload) return; // messaggio fast-packet ancora incompleto, aspetta i frame successivi
+
+    if(dec.pgn === 127501 && payload.length >= 1){
+      const sw = decode127501(payload);
+      sw.channels.forEach((val, idx)=>{
+        const key = sw.instance + ":" + (idx + 1);
+        state.liveChannels.set(key, {
+          instance: sw.instance,
+          idx: idx + 1,
+          state: val,
+          src: dec.src,
+          lastSeen: now
+        });
+      });
+    }
+
+    if(dec.pgn === 127508){
+      const b = decode127508(payload);
+      if(b){
+        const key = dec.src + ":" + b.instance;
+        const existing = state.battery.get(key) || { history: [] };
+        const history = existing.history;
+        history.push({ t: now, voltage: b.voltage, current: b.current });
+        if(history.length > 120) history.shift();
+        state.battery.set(key, {
+          src: dec.src, instance: b.instance,
+          voltage: b.voltage, current: b.current, temperature: b.temperature,
+          lastSeen: now, history
+        });
+      }
+    }
+
+    if(dec.pgn === 127507){
+      const c = decode127507(payload);
+      if(c){
+        const key = dec.src + ":" + c.chargerInstance;
+        state.chargerStatus.set(key, { src: dec.src, ...c, lastSeen: now });
+      }
+    }
+
+    if(dec.pgn === 127505){
+      const t = decode127505(payload);
+      if(t){
+        const key = dec.src + ":" + t.instance + ":" + t.fluidType; // instance+fluidType identifica univocamente il serbatoio
+        state.tanks.set(key, { src: dec.src, ...t, lastSeen: now });
+      }
+    }
+
+    if(dec.pgn === 127744){
+      const inv = decode127744(payload);
+      if(inv){
+        const key = dec.src + ":" + inv.dcInstance + ":" + inv.acInstance;
+        state.inverters.set(key, { src: dec.src, ...inv, lastSeen: now });
+      }
+    }
+
+    if(dec.pgn === 127503 || dec.pgn === 127504){
+      const ac = dec.pgn === 127503 ? decode127503(payload) : decode127504(payload);
+      if(ac){
+        const key = dec.pgn + ":" + dec.src + ":" + ac.connectionNumber;
+        state.masterVoltProp.set(key, {
+          pgn: dec.pgn, src: dec.src,
+          label: PGN_NAMES[dec.pgn] + " · conn " + ac.connectionNumber,
+          payload: Array.from(payload),
+          u16_0: null, u16_1: null,
+          extra: ac,
+          lastSeen: now, count: (state.masterVoltProp.get(key)||{count:0}).count + 1
+        });
+      }
+    }
+
+    // Mastervolt proprietari (65280-65535 con header 27 99)
+    if(dec.pgn >= 65280 && dec.pgn <= 65535 && payload.length >= 2 && payload[0] === 0x27 && payload[1] === 0x99){
+      const mv = decodeMasterVoltProp(payload);
+      if(mv){
+        const key = dec.pgn + ":" + dec.src;
+        const prev = state.masterVoltProp.get(key) || {count:0};
+        state.masterVoltProp.set(key, {
+          pgn: dec.pgn, src: dec.src,
+          label: PGN_NAMES[dec.pgn] || ("PGN " + dec.pgn),
+          payload: mv.payload, u16_0: mv.u16_0, u16_1: mv.u16_1,
+          lastSeen: now, count: prev.count + 1
+        });
+      }
+    }
+
+    // MasterBus gateway (PGN 6000-30000, src >= 70)
+    if(dec.pgn >= 6000 && dec.pgn <= 30000 && payload.length >= 2){
+      const key = dec.pgn + ":" + dec.src;
+      const prev = state.masterVoltProp.get(key) || {count:0};
+      const u16_0 = payload[0] | (payload[1]<<8);
+      const u16_1 = payload.length >= 4 ? (payload[2] | (payload[3]<<8)) : null;
+      const u16_4 = payload.length >= 6 ? (payload[4] | (payload[5]<<8)) : null;
+      const MB_PGN_NAMES = {
+        6144:"MasterBus DC",10240:"MasterBus Status",10752:"MasterBus Status",
+        19456:"MasterBus Energy",19968:"MasterBus Solar/AC",
+        27648:"MasterBus DC Device",27904:"MasterBus DC Device",
+        28160:"MasterBus DC Device",28416:"MasterBus DC Device"
+      };
+      state.masterVoltProp.set(key, {
+        pgn: dec.pgn, src: dec.src,
+        label: MB_PGN_NAMES[dec.pgn] || ("MasterBus PGN " + dec.pgn),
+        payload: Array.from(payload), u16_0, u16_1,
+        u16_extra: u16_4,  // word aggiuntiva [4:6] spesso il valore principale
+        lastSeen: now, count: prev.count + 1
+      });
+    }
+
+    // Product Information (PGN 126996) → identifica il dispositivo
+    if(dec.pgn === 126996 && payload.length >= 2){
+      const modelName = decodeProductInfo(payload);
+      const modelCode = payload[0] | (payload[1]<<8);
+      const existing = state.devices.get(dec.src) || {};
+      state.devices.set(dec.src, {
+        src: dec.src,
+        modelCode,
+        modelName: modelName || existing.modelName || ("Dispositivo src " + dec.src),
+        lastSeen: now
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Render Live + Raw (limitate in frequenza)                          */
+  /* ---------------------------------------------------------------- */
+  function logRaw(frame, dec, ts){
+    if(dec){
+      const key = dec.pgn + ":" + dec.src;
+      const entry = state.pgnSummary.get(key) || { pgn: dec.pgn, src: dec.src, count: 0 };
+      entry.count++;
+      entry.lastSeen = ts;
+      entry.lastData = frame.data;
+      state.pgnSummary.set(key, entry);
+    }
+    if(state.rawPaused) return;
+    state.rawLog.push({ frame, dec, ts });
+    if(state.rawLog.length > 600) state.rawLog.shift();
+  }
+
+  function fmtData(data){
+    return Array.from(data).map(b=>b.toString(16).padStart(2,"0")).join(" ");
+  }
+
+  function renderPgnSummary(){
+    const filter = document.getElementById("pgnSummaryFilter").value.toLowerCase();
+    const tbody = document.getElementById("pgnSummaryBody");
+    const rows = [...state.pgnSummary.values()].sort((a,b)=> b.lastSeen - a.lastSeen);
+    let html = "";
+    rows.forEach(r=>{
+      const name = PGN_NAMES[r.pgn] || "—";
+      const hay = (r.pgn + " " + name + " " + r.src).toLowerCase();
+      if(filter && !hay.includes(filter)) return;
+      const ago = Math.round((Date.now() - r.lastSeen)/1000);
+      html += `<tr>
+        <td class="mono">${r.pgn}</td>
+        <td>${name}</td>
+        <td class="mono dim">${r.src}</td>
+        <td class="mono dim">${r.count}</td>
+        <td class="mono dim">${ago}s fa</td>
+        <td class="mono dim">${fmtData(r.lastData)}</td>
+      </tr>`;
+    });
+    tbody.innerHTML = html || `<tr><td colspan="6" class="empty">Nessun PGN ricevuto ancora</td></tr>`;
+  }
+
+  function renderRaw(){
+    const filter = document.getElementById("rawFilter").value.toLowerCase();
+    const tbody = document.getElementById("rawTableBody");
+    const rows = state.rawLog.slice(-200).reverse();
+    let html = "";
+    rows.forEach(r=>{
+      const idHex = "0x" + r.frame.id.toString(16).padStart(r.frame.extended?8:3,"0");
+      const pgnName = r.dec ? (PGN_NAMES[r.dec.pgn] || "—") : "(std frame)";
+      const pgnTxt = r.dec ? r.dec.pgn : "—";
+      const hay = (idHex + " " + pgnTxt + " " + pgnName + " " + (r.dec? r.dec.src:"")).toLowerCase();
+      if(filter && !hay.includes(filter)) return;
+      const t = new Date(r.ts);
+      const time = t.toLocaleTimeString("it-IT", {hour12:false}) + "." + String(t.getMilliseconds()).padStart(3,"0");
+      html += `<tr>
+        <td class="mono dim">${time}</td>
+        <td class="mono">${idHex}</td>
+        <td class="mono">${r.dec ? r.dec.priority : "—"}</td>
+        <td class="mono">${pgnTxt}</td>
+        <td>${pgnName}</td>
+        <td class="mono">${r.dec ? r.dec.src : "—"}</td>
+        <td class="mono">${r.dec ? r.dec.dst : "—"}</td>
+        <td class="mono dim">${fmtData(r.frame.data)}</td>
+      </tr>`;
+    });
+    tbody.innerHTML = html || `<tr><td colspan="8" class="empty">Nessun frame (ancora)</td></tr>`;
+  }
+
+  function populateInstanceFilter(){
+    const sel = document.getElementById("instanceFilter");
+    const current = sel.value;
+    const instances = [...new Set([...state.liveChannels.values()].map(c=>c.instance))].sort((a,b)=>a-b);
+    sel.innerHTML = `<option value="">Tutte le istanze</option>` + instances.map(i=>`<option value="${i}">Istanza ${i}</option>`).join("");
+    sel.value = current;
+  }
+
+  /* --- Pannello visuale: tile, grafici canvas leggeri, schede batteria --- */
+  function renderTiles(){
+    const grid = document.getElementById("tileGrid");
+    const rows = [...state.liveChannels.values()].sort((a,b)=> a.instance - b.instance || a.idx - b.idx);
+    document.getElementById("tileEmpty").style.display = rows.length ? "none" : "block";
+    let html = "";
+    rows.forEach(c=>{
+      const key = c.instance + ":" + c.idx;
+      const name = state.nameMap[key] || ("Istanza " + c.instance + " · canale " + c.idx);
+      const [label, cls] = STATE_LABEL[c.state] || ["?","off"];
+      const cmdButtons = state.txEnabled ? `
+        <div class="tile-cmd">
+          <button type="button" class="tile-btn on" data-act="on">ON</button>
+          <button type="button" class="tile-btn off" data-act="off">OFF</button>
+        </div>` : "";
+      html += `<div class="tile ${cls}" data-key="${key}" data-name="${escapeHtml(name)}" data-inst="${c.instance}" data-idx="${c.idx}">
+        <div class="tile-led"></div>
+        <div class="tile-name" data-act="rename">${escapeHtml(name)}</div>
+        <div class="tile-meta">${c.instance}.${c.idx} · ${label}</div>
+        ${cmdButtons}
+      </div>`;
+    });
+    grid.innerHTML = html;
+    grid.querySelectorAll(".tile").forEach(t=>{
+      const key = t.dataset.key;
+      const inst = Number(t.dataset.inst);
+      const idx = Number(t.dataset.idx);
+      t.querySelector('[data-act="rename"]').addEventListener("click", (e)=>{
+        e.stopPropagation();
+        const current = t.dataset.name;
+        const newName = prompt("Nome canale " + key, current);
+        if(newName !== null){
+          state.nameMap[key] = newName;
+          saveNameMap();
+          renderTiles();
+          renderLive();
+        }
+      });
+      const btnOn = t.querySelector('.tile-btn.on');
+      const btnOff = t.querySelector('.tile-btn.off');
+      if(btnOn){
+        ['mousedown','touchstart'].forEach(ev => btnOn.addEventListener(ev, e=>{ e.stopPropagation(); e.preventDefault(); startHold(inst, idx, true); }));
+        ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev => btnOn.addEventListener(ev, e=>{ e.stopPropagation(); stopHold(); }));
+      }
+      if(btnOff){
+        ['mousedown','touchstart'].forEach(ev => btnOff.addEventListener(ev, e=>{ e.stopPropagation(); e.preventDefault(); startHold(inst, idx, false); }));
+        ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev => btnOff.addEventListener(ev, e=>{ e.stopPropagation(); stopHold(); }));
+      }
+    });
+  }
+
+  function drawLineChart(canvas, data, opts){
+    opts = opts || {};
+    const ctx = canvas.getContext("2d");
+    // adatta la risoluzione al rendering reale per evitare sfocature
+    const cssW = canvas.clientWidth || canvas.width;
+    const cssH = canvas.clientHeight || canvas.height;
+    if(canvas.width !== cssW) canvas.width = cssW;
+    if(canvas.height !== cssH) canvas.height = cssH;
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    // griglia leggera
+    ctx.strokeStyle = "#1f2e36";
+    ctx.lineWidth = 1;
+    for(let gy=0; gy<=4; gy++){
+      const y = (h/4)*gy;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    }
+    if(!data.length) return;
+    const min = opts.min !== undefined ? opts.min : Math.min(...data, 0);
+    const max = opts.max !== undefined ? opts.max : Math.max(...data, 1);
+    const range = (max - min) || 1;
+    const pad = 4;
+    const color = opts.color || "#4fd1c5";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    data.forEach((v,i)=>{
+      const x = pad + (i/(Math.max(data.length-1,1)))*(w-2*pad);
+      const y = h - pad - ((v-min)/range)*(h-2*pad);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.lineTo(w-pad, h-pad);
+    ctx.lineTo(pad, h-pad);
+    ctx.closePath();
+    ctx.fillStyle = color + "20";
+    ctx.fill();
+  }
+
+  function renderActivityChart(){
+    const canvas = document.getElementById("activityChart");
+    drawLineChart(canvas, state.activityHistory, { color: "#4fd1c5" });
+  }
+
+  const batteryCardEls = new Map(); // chiave -> riferimenti DOM persistenti
+  const liveRowEls = new Map();     // chiave -> riferimenti DOM persistenti
+
+  function ensureBatteryCard(key, b){
+    if(batteryCardEls.has(key)) return batteryCardEls.get(key);
+    const container = document.getElementById("batteryCards");
+    const emptyMsg = container.querySelector(".empty");
+    if(emptyMsg) emptyMsg.remove();
+    const card = document.createElement("div");
+    card.className = "battery-card";
+    card.innerHTML = `
+      <div class="battery-head"><span class="mono dim">Src ${b.src} · Ist. ${b.instance}</span><span class="dim mono" data-role="ago"></span></div>
+      <input type="text" class="name-edit" list="cfgNamesDatalist" data-key="${key}" value="${escapeHtml(state.batteryNameMap[key]||"")}" placeholder="Associa nome da .zcf (es. CHG Servizi - DC 1)">
+      <div class="battery-vals">
+        <div><b data-role="voltage"></b><span>V</span></div>
+        <div><b data-role="current"></b><span>A</span></div>
+        <div data-role="temp-wrap" style="display:none;"><b data-role="temp"></b><span>°C</span></div>
+      </div>
+      <canvas class="spark"></canvas>
+    `;
+    container.appendChild(card);
+    const inp = card.querySelector(".name-edit");
+    inp.addEventListener("change", ()=>{
+      state.batteryNameMap[key] = inp.value;
+      saveBatteryNameMap();
+    });
+    const refs = {
+      card,
+      ago: card.querySelector('[data-role="ago"]'),
+      voltage: card.querySelector('[data-role="voltage"]'),
+      current: card.querySelector('[data-role="current"]'),
+      tempWrap: card.querySelector('[data-role="temp-wrap"]'),
+      temp: card.querySelector('[data-role="temp"]'),
+      canvas: card.querySelector("canvas")
+    };
+    batteryCardEls.set(key, refs);
+    return refs;
+  }
+
+  function renderBattery(){
+    const container = document.getElementById("batteryCards");
+    const keys = [...state.battery.keys()].sort((a,b)=>{
+      const [sa,ia] = a.split(":").map(Number);
+      const [sb,ib] = b.split(":").map(Number);
+      return sa - sb || ia - ib;
+    });
+    if(!keys.length){
+      if(!batteryCardEls.size){
+        container.innerHTML = `<div class="empty">Nessun dato batteria/caricabatteria (PGN 127508) ricevuto ancora.</div>`;
+      }
+      return;
+    }
+    keys.forEach(key=>{
+      const b = state.battery.get(key);
+      const refs = ensureBatteryCard(key, b);
+      const ago = Math.round((Date.now() - b.lastSeen)/1000);
+      refs.ago.textContent = ago + "s fa";
+      refs.voltage.textContent = b.voltage.toFixed(2);
+      refs.current.textContent = b.current.toFixed(1);
+      if(b.temperature !== null){
+        refs.tempWrap.style.display = "";
+        refs.temp.textContent = b.temperature.toFixed(1);
+      }
+      drawLineChart(refs.canvas, b.history.map(h=>h.voltage), { color: "#ffb454" });
+    });
+  }
+
+  const chargerRowEls = new Map();
+
+  function renderChargerStatus(){
+    const tbody = document.getElementById("chargerTableBody");
+    const keys = [...state.chargerStatus.keys()].sort((a,b)=>{
+      const [sa,ia] = a.split(":").map(Number);
+      const [sb,ib] = b.split(":").map(Number);
+      return sa - sb || ia - ib;
+    });
+    document.getElementById("chargerEmpty").style.display = keys.length ? "none" : "block";
+
+    const usedKeys = new Set();
+    keys.forEach(key=>{
+      const c = state.chargerStatus.get(key);
+      usedKeys.add(key);
+      let refs = chargerRowEls.get(key);
+      if(!refs){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono" data-role="src"></td>
+          <td class="mono" data-role="chInst"></td>
+          <td class="mono" data-role="battInst"></td>
+          <td><span class="badge" data-role="badge"></span></td>
+          <td><input type="text" class="name-edit" list="cfgNamesDatalist" data-key="${key}" value="${escapeHtml(state.chargerNameMap[key]||"")}" placeholder="Associa nome da .zcf (es. CHG Servizi)"></td>
+          <td class="mono dim" data-role="eq"></td>
+          <td class="mono dim" data-role="ago"></td>
+        `;
+        const inp = tr.querySelector(".name-edit");
+        inp.addEventListener("change", ()=>{
+          state.chargerNameMap[key] = inp.value;
+          saveChargerNameMap();
+        });
+        refs = {
+          tr,
+          src: tr.querySelector('[data-role="src"]'),
+          chInst: tr.querySelector('[data-role="chInst"]'),
+          battInst: tr.querySelector('[data-role="battInst"]'),
+          badge: tr.querySelector('[data-role="badge"]'),
+          eq: tr.querySelector('[data-role="eq"]'),
+          ago: tr.querySelector('[data-role="ago"]')
+        };
+        chargerRowEls.set(key, refs);
+      }
+      const [label, cls] = CHARGE_STATE[c.operatingState] || ["Sconosciuto ("+c.operatingState+")","nd"];
+      refs.src.textContent = c.src;
+      refs.chInst.textContent = c.chargerInstance;
+      refs.battInst.textContent = c.batteryInstance;
+      refs.badge.className = "badge " + cls;
+      refs.badge.textContent = label;
+      refs.eq.textContent = c.equalizationPending ? "Sì" : "No";
+      refs.ago.textContent = Math.round((Date.now() - c.lastSeen)/1000) + "s fa";
+      if(!refs.tr.contains(document.activeElement)){
+        tbody.appendChild(refs.tr); // riordina solo se la riga non è quella su cui l'utente sta scrivendo
+      }
+    });
+
+    [...chargerRowEls.keys()].forEach(key=>{
+      if(!usedKeys.has(key)){
+        chargerRowEls.get(key).tr.remove();
+        chargerRowEls.delete(key);
+      }
+    });
+  }
+
+  const tankCardEls = new Map();
+  const inverterRowEls = new Map();
+
+  function renderTanks(){
+    const container = document.getElementById("tankCards");
+    const keys = [...state.tanks.keys()].sort();
+    document.getElementById("tankEmpty").style.display = keys.length ? "none" : "block";
+    keys.forEach(key=>{
+      const t = state.tanks.get(key);
+      let refs = tankCardEls.get(key);
+      if(!refs){
+        const TANK_CLASS = {0:"fuel",1:"water",2:"gray",4:"oil",5:"black"};
+        const barClass = TANK_CLASS[t.fluidType] || "water";
+        const card = document.createElement("div");
+        card.className = "tank-card";
+        card.innerHTML = `
+          <div class="battery-head">
+            <span><b data-role="typeName">${FLUID_TYPE_NAME[t.fluidType]||"Serbatoio"}</b> · ist.${t.instance}</span>
+            <span class="mono dim">Src ${t.src}</span>
+          </div>
+          <div class="tank-bar-bg"><div class="tank-bar ${barClass}" data-role="bar" style="width:0%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:13px;">
+            <span><b data-role="level"></b> %</span>
+            <span class="dim"><b data-role="liters"></b> L / <b data-role="cap"></b> L</span>
+          </div>
+          <div class="mono dim" style="font-size:10px;margin-top:4px;" data-role="ago"></div>
+        `;
+        container.appendChild(card);
+        refs = {
+          bar: card.querySelector('[data-role="bar"]'),
+          level: card.querySelector('[data-role="level"]'),
+          liters: card.querySelector('[data-role="liters"]'),
+          cap: card.querySelector('[data-role="cap"]'),
+          ago: card.querySelector('[data-role="ago"]')
+        };
+        tankCardEls.set(key, refs);
+      }
+      refs.bar.style.width = t.level !== null ? Math.min(100, t.level) + "%" : "0%";
+      refs.bar.style.opacity = t.level !== null ? "1" : "0.3";
+      refs.level.textContent = t.level !== null ? t.level.toFixed(1) : "N/D";
+      refs.liters.textContent = (t.level !== null && t.capacity) ? (t.level/100 * t.capacity).toFixed(0) : "—";
+      refs.cap.textContent = t.capacity ? t.capacity.toFixed(0) : "—";
+      refs.ago.textContent = Math.round((Date.now()-t.lastSeen)/1000) + "s fa";
+    });
+  }
+
+  function renderInverters(){
+    const tbody = document.getElementById("inverterTableBody");
+    const keys = [...state.inverters.keys()].sort();
+    document.getElementById("inverterEmpty").style.display = keys.length ? "none" : "block";
+    const used = new Set();
+    keys.forEach(key=>{
+      const inv = state.inverters.get(key);
+      used.add(key);
+      let refs = inverterRowEls.get(key);
+      if(!refs){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono" data-role="src"></td>
+          <td class="mono" data-role="dcInst"></td>
+          <td class="mono" data-role="acInst"></td>
+          <td><span class="badge" data-role="badge"></span></td>
+          <td class="mono dim" data-role="enabled"></td>
+          <td class="mono dim" data-role="ago"></td>
+        `;
+        refs = {
+          tr,
+          src: tr.querySelector('[data-role="src"]'),
+          dcInst: tr.querySelector('[data-role="dcInst"]'),
+          acInst: tr.querySelector('[data-role="acInst"]'),
+          badge: tr.querySelector('[data-role="badge"]'),
+          enabled: tr.querySelector('[data-role="enabled"]'),
+          ago: tr.querySelector('[data-role="ago"]')
+        };
+        inverterRowEls.set(key, refs);
+      }
+      const stName = INVERTER_STATE_NAME[inv.operatingState] || ("Stato "+inv.operatingState);
+      const stCls = inv.operatingState===1?"on": inv.operatingState===0?"off": inv.operatingState>=8?"err":"nd";
+      refs.src.textContent = inv.src;
+      refs.dcInst.textContent = inv.dcInstance;
+      refs.acInst.textContent = inv.acInstance;
+      refs.badge.className = "badge " + stCls;
+      refs.badge.textContent = stName;
+      refs.enabled.textContent = inv.enabled ? "Sì" : "No";
+      refs.ago.textContent = Math.round((Date.now()-inv.lastSeen)/1000) + "s fa";
+      if(!refs.tr.contains(document.activeElement)) tbody.appendChild(refs.tr);
+    });
+    [...inverterRowEls.keys()].forEach(k=>{ if(!used.has(k)){ inverterRowEls.get(k).tr.remove(); inverterRowEls.delete(k); }});
+  }
+
+  const deviceRowEls = new Map();
+
+  function renderDevices(){
+    const tbody = document.getElementById("devicesTableBody");
+    // Aggiungi anche dispositivi noti staticamente non ancora visti sul bus
+    const KNOWN = {0:"ChargeMaster 12/50",3:"ChargeMaster 24/60",4:"MasterBus Interface",
+      5:"ChargeMaster 24/100",6:"MultiPlus 24/3000",7:"MasterShunt 500",
+      8:"ChargeMaster 24/100",10:"MLI Ultra (BMS)",11:"ChargeMaster 24/60",
+      19:"ChargeMaster 12/50",20:"ChargeMaster 24/100"};
+    const keys = new Set([...state.devices.keys(), ...Object.keys(KNOWN).map(Number)]);
+    document.getElementById("devicesEmpty").style.display = keys.size ? "none" : "block";
+    const sorted = [...keys].sort((a,b)=>a-b);
+    const used = new Set();
+    sorted.forEach(src=>{
+      used.add(src);
+      const d = state.devices.get(src) || {};
+      const name = d.modelName || KNOWN[src] || ("Src " + src);
+      const mc = d.modelCode ? "0x"+d.modelCode.toString(16).toUpperCase().padStart(4,"0") : "—";
+      const ago = d.lastSeen ? Math.round((Date.now()-d.lastSeen)/1000)+"s fa" : "mai visto";
+      let refs = deviceRowEls.get(src);
+      if(!refs){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="mono">${src}</td><td data-role="name"></td><td class="mono dim" data-role="mc"></td><td class="mono dim" data-role="ago"></td>`;
+        refs = { tr, name: tr.querySelector('[data-role="name"]'), mc: tr.querySelector('[data-role="mc"]'), ago: tr.querySelector('[data-role="ago"]') };
+        deviceRowEls.set(src, refs);
+      }
+      refs.name.textContent = name;
+      refs.mc.textContent = mc;
+      refs.ago.textContent = ago;
+      tbody.appendChild(refs.tr);
+    });
+    [...deviceRowEls.keys()].forEach(k=>{ if(!used.has(k)){ deviceRowEls.get(k).tr.remove(); deviceRowEls.delete(k); }});
+  }
+
+  function openTV(){
+    const id = document.getElementById("tvId").value.trim().replace(/\s+/g,"");
+    if(!id){ alert("Inserisci l\'ID TeamViewer del PC di bordo."); return; }
+    localStorage.setItem("czoneTV_id", id);
+    document.getElementById("tvStatus").textContent = "ID: " + id;
+    window.open("https://start.teamviewer.com/" + id, "_blank");
+  }
+
+  function renderMasterVoltProp(){
+    const filter = document.getElementById("mvPropFilter").value.toLowerCase();
+    const tbody = document.getElementById("mvPropTableBody");
+    const rows = [...state.masterVoltProp.values()].filter(r=> r.payload !== undefined && r.payload !== null).sort((a,b)=>a.pgn-b.pgn||a.src-b.src);
+    let html="";
+    rows.forEach(r=>{
+      const hay = (r.pgn + " " + (r.label||"") + " " + r.src).toLowerCase();
+      if(filter && !hay.includes(filter)) return;
+      const ago = Math.round((Date.now()-r.lastSeen)/1000);
+      const payHex = r.payload ? r.payload.map(b=>b.toString(16).padStart(2,"0")).join(" ") : "—";
+      const isMB = r.pgn < 65280; // MasterBus
+      html += `<tr${isMB ? ' style="background:rgba(130,170,255,.04)"' : ""}>
+        <td class="mono">${r.pgn}</td>
+        <td class="dim">${r.label||""}</td>
+        <td class="mono dim">${r.src}</td>
+        <td class="mono dim">${r.count}</td>
+        <td class="mono">${r.u16_0 !== null && r.u16_0 !== undefined ? r.u16_0 : "—"}</td>
+        <td class="mono">${r.u16_1 !== null && r.u16_1 !== undefined ? r.u16_1 : "—"}</td>
+        <td class="mono${isMB?" on":""}">${r.u16_extra !== null && r.u16_extra !== undefined ? r.u16_extra : "—"}</td>
+        <td class="mono dim">${payHex}</td>
+        <td class="mono dim">${ago}s fa</td>
+      </tr>`;
+    });
+    tbody.innerHTML = html || `<tr><td colspan="9" class="empty">Nessun dato ricevuto ancora</td></tr>`;
+  }
+
+
+  /* ---------------------------------------------------------------- */
+  /* Sistema allarmi                                                   */
+  /* ---------------------------------------------------------------- */
+  function initAudio(){
+    if(state.alarmAudio) return;
+    try{ state.alarmAudio = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){}
+  }
+
+  function playAlarmBeep(){
+    if(state.alarmMuted || !state.alarmAudio || state.alarmBeeping) return;
+    state.alarmBeeping = true;
+    const ctx = state.alarmAudio;
+    const beepPattern = [[880,0.15],[0,0.05],[880,0.15],[0,0.1],[660,0.25]];
+    let t = ctx.currentTime;
+    beepPattern.forEach(([freq, dur])=>{
+      if(freq > 0){
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.start(t); osc.stop(t + dur);
+      }
+      t += dur;
+    });
+    setTimeout(()=>{ state.alarmBeeping = false; }, t * 1000 + 200);
+  }
+
+  function setAlarm(key, label, severity){
+    if(!state.alarms.has(key)){
+      state.alarms.set(key, { key, label, severity, since: Date.now() });
+      playAlarmBeep();
+    }
+  }
+  function clearAlarm(key){ state.alarms.delete(key); }
+
+  function checkAlarms(){
+    // Canali switch bank in ERR (stato=2)
+    state.liveChannels.forEach((c, key)=>{
+      const aKey = "ch:err:" + key;
+      const name = state.nameMap[key] || ("Ist." + c.instance + " ch." + c.idx);
+      if(c.state === 2){ setAlarm(aKey, "Canale in ERRORE: " + name, "err"); }
+      else { clearAlarm(aKey); }
+    });
+    // Caricabatterie in guasto
+    state.chargerStatus.forEach((c, key)=>{
+      const aKey = "chg:fault:" + key;
+      const name = state.chargerNameMap[key] || ("Charger src " + c.src);
+      if(c.operatingState === 9){ setAlarm(aKey, "GUASTO caricabatterie: " + name, "err"); }
+      else { clearAlarm(aKey); }
+    });
+    // Inverter in guasto
+    state.inverters.forEach((inv, key)=>{
+      const aKey = "inv:fault:" + key;
+      if(inv.operatingState === 9){ setAlarm(aKey, "GUASTO inverter (src " + inv.src + ")", "err"); }
+      else { clearAlarm(aKey); }
+    });
+    // Serbatoi: soglie configurabili
+    state.tanks.forEach((t, key)=>{
+      if(t.level === null) return;
+      const thr = state.tankThresholds[key] || {};
+      const typeName = FLUID_TYPE_NAME[t.fluidType] || "Serbatoio";
+      if(thr.low !== undefined && t.level < thr.low){
+        setAlarm("tank:low:" + key, typeName + " BASSO: " + t.level.toFixed(1) + "%", "warn");
+      } else { clearAlarm("tank:low:" + key); }
+      if(thr.high !== undefined && t.level > thr.high){
+        setAlarm("tank:high:" + key, typeName + " ALTO: " + t.level.toFixed(1) + "%", "err");
+      } else { clearAlarm("tank:high:" + key); }
+    });
+  }
+
+  function renderAlarms(){
+    const count = state.alarms.size;
+    const indicator = document.getElementById("alarmIndicator");
+    const muteBtn = document.getElementById("btnMuteAlarm");
+    const card = document.getElementById("alarmCard");
+    indicator.style.display = count > 0 ? "flex" : "none";
+    muteBtn.style.display = count > 0 ? "inline-block" : "none";
+    document.getElementById("alarmCount").textContent = count + " allarme" + (count !== 1 ? "i" : "");
+    card.style.display = count > 0 ? "block" : "none";
+    if(count > 0){
+      const tbody = document.getElementById("alarmTableBody");
+      tbody.innerHTML = [...state.alarms.values()].map(a=>{
+        const ago = Math.round((Date.now()-a.since)/1000);
+        const row_cls = a.severity === "err" ? "alarm-row-err" : "alarm-row-warn";
+        const badge_cls = a.severity === "err" ? "err" : "nd";
+        return `<tr class="${row_cls}">
+          <td><span class="badge ${badge_cls}">${a.severity === "err" ? "ERRORE" : "ATTENZIONE"}</span></td>
+          <td>${escapeHtml(a.label)}</td>
+          <td class="mono dim">${ago}s fa</td>
+        </tr>`;
+      }).join("");
+    }
+  }
+
+  const tankThresholdEls = new Map(); // chiave tank -> {wrap, input}
+
+  function renderTankThresholds(){
+    const bar = document.getElementById("tankThresholdBar");
+    if(!bar) return;
+    const keys = [...state.tanks.keys()].sort();
+    if(!keys.length){ bar.innerHTML = ""; tankThresholdEls.clear(); return; }
+
+    const isWaste = ft => ft === 5 || ft === 2; // acque nere o grigie
+
+    keys.forEach(key=>{
+      const t = state.tanks.get(key);
+      if(tankThresholdEls.has(key)) return; // già creato, non toccare
+
+      const typeName = FLUID_TYPE_NAME[t.fluidType] || "Tank";
+      const waste = isWaste(t.fluidType);
+      const thrType = waste ? "high" : "low";
+      const defaultVal = waste ? 80 : 15;
+
+      if(!state.tankThresholds[key]) state.tankThresholds[key] = {};
+      if(state.tankThresholds[key][thrType] === undefined)
+        state.tankThresholds[key][thrType] = defaultVal;
+
+      const wrap = document.createElement("span");
+      wrap.className = "threshold-ctrl";
+      wrap.innerHTML = `
+        <span class="dim">${typeName} ${waste ? "ALTO &gt;" : "BASSO &lt;"}</span>
+        <input type="number" min="0" max="100" value="${defaultVal}"
+          style="border-color:${waste?"var(--err)":"var(--warn)"};" class="thr-input">
+        <span class="dim">%</span>`;
+      const inp = wrap.querySelector(".thr-input");
+      inp.addEventListener("change", ()=>{
+        if(!state.tankThresholds[key]) state.tankThresholds[key] = {};
+        state.tankThresholds[key][thrType] = Number(inp.value);
+      });
+      bar.appendChild(wrap);
+      tankThresholdEls.set(key, { wrap, inp });
+    });
+
+    // rimuovi controlli per serbatoi non più presenti
+    [...tankThresholdEls.keys()].forEach(key=>{
+      if(!state.tanks.has(key)){
+        tankThresholdEls.get(key).wrap.remove();
+        tankThresholdEls.delete(key);
+      }
+    });
+  }
+
+  function renderPanel(){
+    checkAlarms();
+    renderAlarms();
+    renderTiles();
+    renderActivityChart();
+    renderBattery();
+    renderChargerStatus();
+    renderTanks();
+    renderTankThresholds();
+    renderInverters();
+    renderDevices();
+    renderMasterVoltProp();
+  }
+
+  function renderLive(){
+    const tbody = document.getElementById("liveTableBody");
+    const filter = document.getElementById("liveFilter").value.toLowerCase();
+    const instFilter = document.getElementById("instanceFilter").value;
+    const all = [...state.liveChannels.values()].sort((a,b)=> a.instance - b.instance || a.idx - b.idx);
+    document.getElementById("liveChCount").textContent = all.length;
+
+    const usedKeys = new Set();
+    let anyShown = false;
+
+    all.forEach(c=>{
+      if(instFilter && String(c.instance) !== instFilter) return;
+      const key = c.instance + ":" + c.idx;
+      const name = state.nameMap[key] || "";
+      const [label, cls] = STATE_LABEL[c.state] || ["?","off"];
+      const hay = (name + " " + label).toLowerCase();
+      if(filter && !hay.includes(filter)) return;
+
+      anyShown = true;
+      usedKeys.add(key);
+
+      let refs = liveRowEls.get(key);
+      if(!refs){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono" data-role="inst"></td>
+          <td class="mono" data-role="idx"></td>
+          <td><span class="badge" data-role="badge"></span></td>
+          <td><input type="text" class="name-edit" list="cfgNamesDatalist" data-key="${key}" value="${escapeHtml(name)}" placeholder="Associa nome da .zcf o scrivi a mano"></td>
+          <td class="mono dim" data-role="src"></td>
+          <td class="mono dim" data-role="ago"></td>
+        `;
+        const inp = tr.querySelector(".name-edit");
+        inp.addEventListener("change", ()=>{
+          state.nameMap[key] = inp.value;
+          saveNameMap();
+        });
+        refs = {
+          tr,
+          inst: tr.querySelector('[data-role="inst"]'),
+          idx: tr.querySelector('[data-role="idx"]'),
+          badge: tr.querySelector('[data-role="badge"]'),
+          src: tr.querySelector('[data-role="src"]'),
+          ago: tr.querySelector('[data-role="ago"]')
+        };
+        liveRowEls.set(key, refs);
+      }
+      refs.inst.textContent = c.instance;
+      refs.idx.textContent = c.idx;
+      refs.badge.className = "badge " + cls;
+      refs.badge.textContent = label;
+      refs.src.textContent = c.src;
+      refs.ago.textContent = Math.round((Date.now() - c.lastSeen)/1000) + "s fa";
+      if(!refs.tr.contains(document.activeElement)){
+        tbody.appendChild(refs.tr); // riordina solo se la riga non è quella su cui l'utente sta scrivendo
+      }
+    });
+
+    // rimuove le righe non più presenti/filtrate
+    [...liveRowEls.keys()].forEach(key=>{
+      if(!usedKeys.has(key)){
+        liveRowEls.get(key).tr.remove();
+        liveRowEls.delete(key);
+      }
+    });
+
+    document.getElementById("liveEmpty").style.display = anyShown ? "none" : "block";
+  }
+
+  document.getElementById("liveFilter").addEventListener("input", renderLive);
+  document.getElementById("instanceFilter").addEventListener("change", renderLive);
+  document.getElementById("rawFilter").addEventListener("input", renderRaw);
+  document.getElementById("pgnSummaryFilter").addEventListener("input", renderPgnSummary);
+  document.getElementById("mvPropFilter").addEventListener("input", renderMasterVoltProp);
+
+  document.getElementById("btnPauseRaw").addEventListener("click", (e)=>{
+    state.rawPaused = !state.rawPaused;
+    e.target.textContent = state.rawPaused ? "Riprendi" : "Pausa";
+  });
+  document.getElementById("btnClearRaw").addEventListener("click", ()=>{
+    state.rawLog = [];
+    renderRaw();
+  });
+
+  document.getElementById("btnExportLiveCsv").addEventListener("click", ()=>{
+    let csv = "istanza,canale,stato,nome,sorgente,ultimo_aggiornamento\n";
+    [...state.liveChannels.values()].forEach(c=>{
+      const key = c.instance + ":" + c.idx;
+      const name = state.nameMap[key] || "";
+      const label = (STATE_LABEL[c.state]||["?"])[0];
+      csv += `${c.instance},${c.idx},${label},"${name.replace(/"/g,'""')}",${c.src},${new Date(c.lastSeen).toISOString()}\n`;
+    });
+    downloadText(csv, "czone_live_channels.csv");
+  });
+
+  document.getElementById("btnExportPgnSummary").addEventListener("click", ()=>{
+    let csv = "pgn,descrizione,src,conteggio,ultima_vista,ultimi_dati_hex\n";
+    [...state.pgnSummary.values()].forEach(r=>{
+      const name = PGN_NAMES[r.pgn] || "";
+      csv += `${r.pgn},"${name}",${r.src},${r.count},${new Date(r.lastSeen).toISOString()},${fmtData(r.lastData)}\n`;
+    });
+    downloadText(csv, "czone_pgn_summary.csv");
+  });
+
+  document.getElementById("btnExportRawCsv").addEventListener("click", ()=>{
+    let csv = "ora,id_can,priorita,pgn,descrizione,src,dst,dati_hex\n";
+    state.rawLog.forEach(r=>{
+      const idHex = "0x" + r.frame.id.toString(16).padStart(r.frame.extended?8:3,"0");
+      const name = r.dec ? (PGN_NAMES[r.dec.pgn] || "") : "";
+      csv += `${new Date(r.ts).toISOString()},${idHex},${r.dec?r.dec.priority:""},${r.dec?r.dec.pgn:""},"${name}",${r.dec?r.dec.src:""},${r.dec?r.dec.dst:""},${fmtData(r.frame.data)}\n`;
+    });
+    downloadText(csv, "czone_raw_log.csv");
+  });
+
+  function downloadText(text, filename){
+    const blob = new Blob([text], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Carica ID TeamViewer salvato
+  const savedTV = localStorage.getItem("czoneTV_id");
+  if(savedTV){ document.getElementById("tvId").value = savedTV; document.getElementById("tvStatus").textContent = "ID: "+savedTV; }
+
+  btnConnect.addEventListener("click", connect);
+  btnDisconnect.addEventListener("click", disconnect);
+
+  document.getElementById("btnMuteAlarm").addEventListener("click", ()=>{
+    state.alarmMuted = !state.alarmMuted;
+    document.getElementById("btnMuteAlarm").textContent = state.alarmMuted ? "🔕" : "🔔";
+    document.getElementById("btnMuteAlarm").classList.toggle("muted", state.alarmMuted);
+  });
+
+  // Inizializza AudioContext al primo gesto utente (richiesto dai browser moderni)
+  document.addEventListener("click", initAudio, { once: true });
+  document.addEventListener("touchstart", initAudio, { once: true });
+
+  document.getElementById("txEnableCheck").addEventListener("change", (e)=>{
+    state.txEnabled = e.target.checked;
+    renderTiles();
+  });
+  document.getElementById("txSrcInput").addEventListener("change", (e)=>{
+    state.txSourceAddress = Number(e.target.value) || 0;
+  });
+  document.getElementById("txPriorityInput").addEventListener("change", (e)=>{
+    state.txPriority = Number(e.target.value) || 0;
+  });
+  document.getElementById("txFillSelect").addEventListener("change", (e)=>{
+    state.txFillValue = Number(e.target.value);
+  });
+  document.getElementById("txIntervalInput").addEventListener("change", (e)=>{
+    state.txInterval = Math.max(10, Math.min(2000, Number(e.target.value)||100));
+  });
+
+  /* ciclo di refresh UI a 4 Hz, frame rate counter, instance list */
+  setInterval(()=>{
+    document.getElementById("frameCount").textContent = state.frameCount;
+    document.getElementById("frameRate").textContent = state.frameTimestamps.length;
+    populateInstanceFilter();
+    renderLive();
+    renderRaw();
+    renderPanel();
+    renderPgnSummary();
+  }, 250);
+
+  /* campionamento al secondo per il grafico attività bus */
+  let lastFrameCountSample = 0;
+  setInterval(()=>{
+    const delta = state.frameCount - lastFrameCountSample;
+    lastFrameCountSample = state.frameCount;
+    state.activityHistory.push(delta);
+    if(state.activityHistory.length > 60) state.activityHistory.shift();
+  }, 1000);
+
+})();
+</script>
+</body>
+</html>
